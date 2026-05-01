@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriVision Pro | Disease Classifier</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    
+    <style>
+        /* A few extra styles to support the new dashboard elements */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .action-box {
+            grid-column: span 2;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f8fafc;
+            border-left: 5px solid #94a3b8;
+            margin-top: 10px;
+        }
+        .action-box h3 { margin-top: 0; margin-bottom: 5px; font-size: 14px; color: #475569; }
+        .action-text { font-weight: 600; color: #1e293b; }
+        .progress-bar-bg { background: #e2e8f0; height: 10px; border-radius: 5px; overflow: hidden; margin: 10px 0; }
+        .progress-bar-fill { height: 100%; transition: width 0.8s ease-in-out; }
+    </style>
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="logo">
+            <i class="fa-solid fa-leaf"></i> AgriVision <span>Pro</span>
+        </div>
+        <div class="nav-badge">AI Diagnostic Engine v2.0</div>
+    </header>
+
+    <main class="dashboard">
+        
+        <section class="panel upload-panel">
+            <h2><i class="fa-solid fa-cloud-arrow-up"></i> Image Input</h2>
+            <p>Upload or drag & drop a potato leaf image</p>
+            
+            <div class="drop-zone" id="dropZone">
+                <i class="fa-regular fa-image drop-icon"></i>
+                <span class="drop-text">Drag & Drop leaf image here</span>
+                <span class="or-text">or</span>
+                <label for="imageInput" class="browse-btn">Browse Files</label>
+                <input type="file" id="imageInput" accept="image/*" hidden>
+            </div>
+
+            <button class="analyze-btn" id="analyzeBtn" onclick="uploadImage()" disabled>
+                <i class="fa-solid fa-microchip"></i> Run AI Analysis
+            </button>
+        </section>
+
+        <section class="panel results-panel">
+            <h2><i class="fa-solid fa-chart-pie"></i> Diagnostic Results</h2>
+            
+            <div class="preview-container">
+                <img id="imagePreview" alt="Leaf Preview" src="https://via.placeholder.com/400x300?text=No+Image+Selected">
+                <div class="scanner-line" id="scannerLine" style="display: none;"></div>
+            </div>
+
+            <div class="results-dashboard" id="resultsDashboard">
+                
+                <div class="metrics-grid">
+                    <div class="status-box box-card" id="statusBox">
+                        <h3>Detection</h3>
+                        <div class="status-badge" id="statusBadge" style="padding: 5px 10px; border-radius: 5px; font-weight: bold; background: #e2e8f0; display: inline-block;">Awaiting Image</div>
+                    </div>
+                    
+                    <div class="confidence-box box-card">
+                        <h3>AI Confidence</h3>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="confidenceFill" style="width: 0%; background: #3b82f6;"></div>
+                        </div>
+                        <div class="confidence-text" id="confidenceText">0%</div>
+                    </div>
+
+                    <div class="severity-box box-card" style="grid-column: span 2;">
+                        <h3>Leaf Area Infected (Severity)</h3>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="severityFill" style="width: 0%; background: #f59e0b;"></div>
+                        </div>
+                        <div class="confidence-text" id="severityText">0%</div>
+                    </div>
+                </div>
+
+                <div class="action-box" id="actionBox">
+                    <h3><i class="fa-solid fa-stethoscope"></i> Recommended Action</h3>
+                    <div class="action-text" id="actionText">Please upload an image to receive treatment advice.</div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <footer>
+        <p>Developed by Gaurav | NIT Jalandhar</p>
+    </footer>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('imageInput');
+        const preview = document.getElementById('imagePreview');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const scannerLine = document.getElementById('scannerLine');
+        let currentFile = null;
+
+        // --- Drag & Drop Logic ---
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('dragover'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            currentFile = file;
+            preview.src = URL.createObjectURL(file);
+            analyzeBtn.disabled = false;
+            
+            // Reset UI
+            document.getElementById('statusBadge').innerText = "Ready to Scan";
+            document.getElementById('statusBadge').style.background = "#e2e8f0";
+            document.getElementById('statusBadge').style.color = "#475569";
+            
+            document.getElementById('confidenceFill').style.width = "0%";
+            document.getElementById('confidenceText').innerText = "0%";
+            
+            document.getElementById('severityFill').style.width = "0%";
+            document.getElementById('severityText').innerText = "0%";
+            
+            document.getElementById('actionText').innerText = "Click 'Run AI Analysis' to generate a report.";
+            document.getElementById('actionBox').style.borderLeftColor = "#94a3b8";
+        }
+
+        // --- API Connection Logic ---
+        async function uploadImage() {
+            if (!currentFile) return;
+
+            scannerLine.style.display = 'block';
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
+
+            const formData = new FormData();
+            formData.append("file", currentFile);
+
+            try {
+                // Change URL if your Flask app is on a different port
+                const response = await fetch("/predict", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                scannerLine.style.display = 'none';
+                analyzeBtn.innerHTML = '<i class="fa-solid fa-microchip"></i> Run AI Analysis';
+                analyzeBtn.disabled = false;
+
+                // --- UPDATE UI WITH JSON DATA ---
+                const statusBadge = document.getElementById('statusBadge');
+                const actionBox = document.getElementById('actionBox');
+                
+                // Set text values
+                statusBadge.innerText = data.disease;
+                document.getElementById('actionText').innerText = data.status;
+
+                // Handle Colors based on health
+                if (data.disease.toLowerCase().includes("healthy")) {
+                    statusBadge.style.background = "#dcfce7";
+                    statusBadge.style.color = "#166534";
+                    document.getElementById('confidenceFill').style.background = "#22c55e";
+                    document.getElementById('severityFill').style.background = "#22c55e";
+                    actionBox.style.borderLeftColor = "#22c55e";
+                } else {
+                    statusBadge.style.background = "#fee2e2";
+                    statusBadge.style.color = "#991b1b";
+                    document.getElementById('confidenceFill').style.background = "#ef4444";
+                    document.getElementById('severityFill').style.background = "#ef4444";
+                    actionBox.style.borderLeftColor = "#ef4444";
+                }
+
+                // Animate progress bars
+                setTimeout(() => {
+                    document.getElementById('confidenceFill').style.width = data.confidence + "%";
+                    document.getElementById('confidenceText').innerText = data.confidence + "%";
+                    
+                    document.getElementById('severityFill').style.width = data.severity + "%";
+                    document.getElementById('severityText').innerText = data.severity + "%";
+                }, 100);
+
+            } catch (error) {
+                console.error("Error:", error);
+                scannerLine.style.display = 'none';
+                analyzeBtn.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Server Error';
+                alert("Cannot connect to backend. Is your Flask app.py running?");
+            }
+        }
+    </script>
+</body>
+</html>
