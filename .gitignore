@@ -1,0 +1,9 @@
+# Security
+.env
+
+# Python
+__pycache__/
+
+# Optional: If your potato_model_best.keras is over 100MB, GitHub will reject it. 
+# If it's huge, uncomment the line below to ignore it:
+# *.keras

@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgriVision — Potato Disease Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green-50: #eef6e8;
+    --green-100: #cce5b8;
+    --green-200: #a8d185;
+    --green-400: #6db33f;
+    --green-600: #3d7a1a;
+    --green-800: #1e4409;
+    --green-900: #0f2504;
+
+    --amber-50: #fdf3e0;
+    --amber-200: #f5c867;
+    --amber-400: #e69d1a;
+    --amber-600: #9a6308;
+    --amber-800: #5c3a04;
+
+    --red-50: #fdf0ef;
+    --red-200: #f5a49f;
+    --red-400: #e04840;
+    --red-600: #9c2820;
+    --red-800: #5a1410;
+
+    --gray-50: #f6f5f2;
+    --gray-100: #e9e8e3;
+    --gray-200: #d2d0c8;
+    --gray-400: #8c8b84;
+    --gray-600: #5e5d58;
+    --gray-800: #2c2c2a;
+    --gray-900: #1a1a18;
+
+    --bg: #0f140d;
+    --bg-card: #161d13;
+    --bg-card2: #1c2518;
+    --border: rgba(110, 180, 60, 0.15);
+    --border-bright: rgba(110, 180, 60, 0.35);
+    --text-primary: #e8f0e2;
+    --text-secondary: #8da87e;
+    --text-muted: #556650;
+    --accent: #6db33f;
+    --accent-glow: rgba(109, 179, 63, 0.2);
+    --danger: #e04840;
+    --warning: #e69d1a;
+    --radius: 12px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+  }
+
+  html { background: var(--bg); color: var(--text-primary); font-family: 'Outfit', sans-serif; font-size: 16px; line-height: 1.6; min-height: 100vh; }
+
+  body { max-width: 920px; margin: 0 auto; padding: 0 20px 80px; }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 32px 0 28px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+  .logo-mark {
+    width: 48px; height: 48px; border-radius: 14px;
+    background: linear-gradient(135deg, #2a4a18 0%, #1a3510 100%);
+    border: 1px solid var(--border-bright);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-mark svg { width: 26px; height: 26px; }
+  .header-text h1 { font-family: 'DM Serif Display', serif; font-size: 26px; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em; }
+  .header-text p { font-size: 13px; color: var(--text-secondary); font-weight: 300; margin-top: 2px; }
+  .header-badge {
+    margin-left: auto; background: var(--accent-glow); border: 1px solid var(--border-bright);
+    color: var(--accent); font-size: 11px; font-weight: 500; padding: 5px 12px;
+    border-radius: 100px; font-family: 'DM Mono', monospace; letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 14px; font-family: 'DM Mono', monospace;
+  }
+
+  /* ── UPLOAD ZONE ── */
+  .upload-section { margin-bottom: 32px; }
+  #drop-zone {
+    border: 1.5px dashed var(--border-bright);
+    border-radius: var(--radius-xl);
+    background: var(--bg-card);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative; overflow: hidden;
+  }
+  #drop-zone::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(109,179,63,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  #drop-zone:hover, #drop-zone.drag-over {
+    border-color: var(--accent); background: #1a2615;
+  }
+  #drop-zone.has-image { padding: 16px; }
+  .upload-icon { margin-bottom: 16px; opacity: 0.6; }
+  .upload-icon svg { width: 44px; height: 44px; }
+  #drop-zone h2 { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; color: var(--text-primary); margin-bottom: 8px; }
+  #drop-zone p { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+  #drop-zone .browse-link { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(109,179,63,0.4); }
+  #file-input { display: none; }
+
+  .preview-wrapper { position: relative; display: inline-block; }
+  #preview-img {
+    max-width: 100%; max-height: 320px; border-radius: var(--radius);
+    display: block; margin: 0 auto;
+    border: 1px solid var(--border-bright);
+  }
+  .preview-remove {
+    position: absolute; top: 8px; right: 8px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.15);
+    color: #fff; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1; transition: background 0.2s;
+  }
+  .preview-remove:hover { background: rgba(224,72,64,0.8); }
+  .preview-filename {
+    margin-top: 10px; font-size: 12px; color: var(--text-secondary);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── ANALYZE BUTTON ── */
+  #analyze-btn {
+    width: 100%; padding: 15px;
+    background: var(--accent); color: #0f2504;
+    border: none; border-radius: var(--radius);
+    font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600;
+    letter-spacing: 0.02em; cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-top: 16px;
+  }
+  #analyze-btn:hover:not(:disabled) { background: #83cc50; transform: translateY(-1px); }
+  #analyze-btn:active:not(:disabled) { transform: translateY(0); }
+  #analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  #analyze-btn .btn-icon { width: 18px; height: 18px; }
+
+  /* ── LOADING ── */
+  #loading-state { display: none; text-align: center; padding: 40px 20px; }
+  .scan-animation {
+    width: 80px; height: 80px; border-radius: 50%;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .scan-animation svg { width: 36px; height: 36px; animation: spin 3s linear infinite reverse; }
+  #loading-state h3 { font-family: 'DM Serif Display', serif; font-size: 20px; color: var(--text-primary); margin-bottom: 6px; }
+  #loading-state p { font-size: 13px; color: var(--text-secondary); }
+  .loading-steps { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 280px; margin-left: auto; margin-right: auto; }
+  .step-item { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text-muted); display: flex; align-items: center; gap: 8px; text-align: left; }
+  .step-item.active { color: var(--accent); }
+  .step-item.done { color: var(--text-secondary); }
+  .step-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  /* ── RESULTS ── */
+  #result-section { display: none; animation: fadeUp 0.5s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Verdict Banner */
+  .verdict-banner {
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    border: 1.5px solid;
+    position: relative; overflow: hidden;
+  }
+  .verdict-banner.healthy { background: #0e1f0b; border-color: rgba(109,179,63,0.4); }
+  .verdict-banner.early-blight { background: #1f170a; border-color: rgba(230,157,26,0.4); }
+  .verdict-banner.late-blight { background: #1f0c0b; border-color: rgba(224,72,64,0.4); }
+  .verdict-banner.unknown { background: #141414; border-color: rgba(140,139,132,0.4); }
+  .verdict-banner::before {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 200px; height: 100%; opacity: 0.07;
+    background: radial-gradient(ellipse at right, white, transparent 70%);
+  }
+  .verdict-header { display: flex; align-items: flex-start; gap: 16px; }
+  .verdict-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 24px; }
+  .healthy .verdict-icon { background: rgba(109,179,63,0.15); }
+  .early-blight .verdict-icon { background: rgba(230,157,26,0.15); }
+  .late-blight .verdict-icon { background: rgba(224,72,64,0.15); }
+  .unknown .verdict-icon { background: rgba(140,139,132,0.15); }
+  .verdict-title-group { flex: 1; }
+  .verdict-label { font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; font-family: 'DM Mono', monospace; margin-bottom: 4px; }
+  .healthy .verdict-label { color: var(--accent); }
+  .early-blight .verdict-label { color: var(--warning); }
+  .late-blight .verdict-label { color: var(--danger); }
+  .unknown .verdict-label { color: var(--text-secondary); }
+  .verdict-disease-name { font-family: 'DM Serif Display', serif; font-size: 28px; font-weight: 400; color: var(--text-primary); line-height: 1.1; }
+  .verdict-scientific { font-size: 12px; font-style: italic; color: var(--text-secondary); margin-top: 4px; font-family: 'DM Serif Display', serif; }
+  .confidence-block { margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .confidence-row { display: flex; align-items: center; gap: 12px; }
+  .conf-label { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text-secondary); width: 80px; flex-shrink: 0; }
+  .conf-bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+  .conf-bar-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+  .healthy .conf-bar-fill { background: var(--accent); }
+  .early-blight .conf-bar-fill { background: var(--warning); }
+  .late-blight .conf-bar-fill { background: var(--danger); }
+  .unknown .conf-bar-fill { background: var(--gray-400); }
+  .conf-pct { font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace; width: 38px; text-align: right; flex-shrink: 0; }
+  .healthy .conf-pct { color: var(--accent); }
+  .early-blight .conf-pct { color: var(--warning); }
+  .late-blight .conf-pct { color: var(--danger); }
+  .unknown .conf-pct { color: var(--text-secondary); }
+
+  /* Info Grid */
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .info-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 20px;
+  }
+  .info-card h4 { font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; font-family: 'DM Mono', monospace; color: var(--text-muted); margin-bottom: 12px; }
+  .info-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.65; }
+  .info-card ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .info-card ul li { font-size: 13.5px; color: var(--text-secondary); padding-left: 16px; position: relative; line-height: 1.55; }
+  .info-card ul li::before { content: '—'; position: absolute; left: 0; color: var(--text-muted); }
+
+  /* Treatment Protocol */
+  .treatment-section { margin-bottom: 24px; }
+  .treatment-section h3 { font-family: 'DM Serif Display', serif; font-size: 19px; color: var(--text-primary); margin-bottom: 16px; }
+  .treatment-steps { display: flex; flex-direction: column; gap: 10px; }
+  .treatment-step {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 18px;
+    display: flex; align-items: flex-start; gap: 14px;
+  }
+  .step-num { width: 26px; height: 26px; border-radius: 8px; background: rgba(109,179,63,0.12); border: 1px solid var(--border-bright); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; font-family: 'DM Mono', monospace; color: var(--accent); flex-shrink: 0; }
+  .step-content strong { font-size: 13px; font-weight: 500; color: var(--text-primary); display: block; margin-bottom: 3px; }
+  .step-content p { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; }
+
+  /* Severity Meter */
+  .severity-block { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px; }
+  .severity-block h4 { font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; font-family: 'DM Mono', monospace; color: var(--text-muted); margin-bottom: 14px; }
+  .severity-scale { display: flex; gap: 4px; margin-bottom: 8px; }
+  .severity-segment { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.06); transition: background 0.5s ease; }
+  .severity-segment.active-low { background: var(--accent); }
+  .severity-segment.active-med { background: var(--warning); }
+  .severity-segment.active-high { background: var(--danger); }
+  .severity-labels { display: flex; justify-content: space-between; font-size: 10px; font-family: 'DM Mono', monospace; color: var(--text-muted); }
+
+  /* Prevention Tips */
+  .tips-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 32px; }
+  .tip-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+  }
+  .tip-icon { font-size: 20px; margin-bottom: 8px; }
+  .tip-card h5 { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 5px; }
+  .tip-card p { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+  /* Raw analysis toggle */
+  .raw-toggle { 
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; margin-bottom: 24px;
+  }
+  .raw-toggle summary {
+    padding: 12px 16px; cursor: pointer; list-style: none;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text-secondary);
+    user-select: none;
+    background: var(--bg-card);
+  }
+  .raw-toggle summary:hover { color: var(--text-primary); }
+  .raw-toggle summary::after { content: '↓'; transition: transform 0.2s; }
+  .raw-toggle[open] summary::after { transform: rotate(180deg); }
+  .raw-content {
+    padding: 16px; font-family: 'DM Mono', monospace; font-size: 11.5px;
+    color: var(--text-secondary); line-height: 1.7;
+    border-top: 1px solid var(--border);
+    white-space: pre-wrap; word-break: break-word;
+    background: #0d1209;
+  }
+
+  /* Reset */
+  #reset-btn {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--text-secondary); padding: 10px 20px;
+    border-radius: var(--radius); font-family: 'Outfit', sans-serif;
+    font-size: 13px; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Error */
+  #error-state { display: none; background: #1f0c0b; border: 1px solid rgba(224,72,64,0.3); border-radius: var(--radius-lg); padding: 24px; margin-top: 16px; text-align: center; }
+  #error-state h3 { font-family: 'DM Serif Display', serif; font-size: 18px; color: #f5a49f; margin-bottom: 8px; }
+  #error-state p { font-size: 13px; color: var(--text-secondary); }
+  #error-msg { font-family: 'DM Mono', monospace; font-size: 11px; color: #e04840; margin-top: 10px; word-break: break-all; }
+
+  /* Footer */
+  footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: gap; gap: 8px; }
+  footer p { font-size: 12px; color: var(--text-muted); }
+  .model-badge { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-muted); background: var(--bg-card); border: 1px solid var(--border); padding: 4px 10px; border-radius: 100px; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .verdict-disease-name { font-size: 22px; }
+    .info-grid { grid-template-columns: 1fr; }
+    .tips-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+  <div style="background: #161d13; border-bottom: 1px solid rgba(110, 180, 60, 0.35); padding: 12px; text-align: center;">
+    <a href="/" style="color: #6db33f; margin: 0 15px; text-decoration: none; font-family: 'Outfit', sans-serif; font-weight: 500;">🖥️ Local ML Model</a>
+    <a href="/gemini" style="color: #6db33f; margin: 0 15px; text-decoration: none; font-family: 'Outfit', sans-serif; font-weight: 500;">✨ Cloud AI Model (Gemini)</a>
+</div>
+
+<header>
+  <div class="logo-mark">
+    <svg viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M13 3C8.5 3 5 7 5 13s3.5 10 8 10c2 0 4-1.5 5.5-4" stroke="#6db33f" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M13 3c2.5 0 5 1.5 6.5 4.5" stroke="#6db33f" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 2"/>
+      <circle cx="13" cy="13" r="3.5" stroke="#6db33f" stroke-width="1.5"/>
+      <path d="M13 9.5V7M13 19v-2.5M9.5 13H7M19 13h-2.5" stroke="#6db33f" stroke-width="1.2" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div class="header-text">
+    <h1>AgriVision</h1>
+    <p>Potato Leaf Disease Detection &amp; Analysis</p>
+  </div>
+  <div class="header-badge">AI-POWERED</div>
+</header>
+
+<!-- UPLOAD -->
+<div class="upload-section" id="upload-section">
+  <div class="section-label">Upload Leaf Image</div>
+  <div id="drop-zone">
+    <div class="upload-icon" id="upload-icon-wrap">
+      <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="40" height="40" rx="10" stroke="#6db33f" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <path d="M22 28V16M22 16l-5 5M22 16l5 5" stroke="#6db33f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14 30h16" stroke="#6db33f" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+      </svg>
+    </div>
+    <h2 id="upload-title">Drop a leaf image here</h2>
+    <p id="upload-subtitle">Drag &amp; drop a potato leaf photo, or <a class="browse-link" id="browse-link" href="#">browse files</a><br><span style="font-size:11px; color: var(--text-muted); margin-top:6px; display:block;">Supports JPG, PNG, WEBP — max 10 MB</span></p>
+    <div id="preview-area" style="display:none;">
+      <div class="preview-wrapper">
+        <img id="preview-img" src="" alt="Leaf preview"/>
+        <button class="preview-remove" id="remove-btn" title="Remove image">✕</button>
+      </div>
+      <p class="preview-filename" id="preview-filename"></p>
+    </div>
+    <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,image/gif">
+  </div>
+
+  <button id="analyze-btn" disabled>
+    <svg class="btn-icon" viewBox="0 0 18 18" fill="none">
+      <circle cx="9" cy="9" r="7.5" stroke="#0f2504" stroke-width="1.5"/>
+      <path d="M6 9l2 2 4-4" stroke="#0f2504" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Analyze Leaf
+  </button>
+</div>
+
+<!-- LOADING -->
+<div id="loading-state">
+  <div class="scan-animation">
+    <svg viewBox="0 0 36 36" fill="none">
+      <circle cx="18" cy="18" r="14" stroke="rgba(109,179,63,0.2)" stroke-width="1.5"/>
+      <path d="M18 4C10.3 4 4 10.3 4 18" stroke="#6db33f" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="18" cy="18" r="4" fill="rgba(109,179,63,0.3)" stroke="#6db33f" stroke-width="1"/>
+    </svg>
+  </div>
+  <h3>Scanning leaf tissue…</h3>
+  <p>AI vision model is analyzing your image</p>
+  <div class="loading-steps">
+    <div class="step-item active" id="step1"><span class="step-dot"></span>Preprocessing image</div>
+    <div class="step-item" id="step2"><span class="step-dot"></span>Detecting lesion patterns</div>
+    <div class="step-item" id="step3"><span class="step-dot"></span>Classifying disease</div>
+    <div class="step-item" id="step4"><span class="step-dot"></span>Generating treatment plan</div>
+  </div>
+</div>
+
+<!-- ERROR -->
+<div id="error-state">
+  <h3>Analysis Failed</h3>
+  <p>Something went wrong while contacting the AI model.</p>
+  <p id="error-msg"></p>
+</div>
+
+<!-- RESULTS -->
+<div id="result-section">
+  <!-- Verdict Banner -->
+  <div id="verdict-banner" class="verdict-banner">
+    <div class="verdict-header">
+      <div class="verdict-icon" id="verdict-icon">🌿</div>
+      <div class="verdict-title-group">
+        <div class="verdict-label" id="verdict-label">DIAGNOSIS</div>
+        <div class="verdict-disease-name" id="verdict-name">—</div>
+        <div class="verdict-scientific" id="verdict-scientific"></div>
+      </div>
+    </div>
+    <div class="confidence-block">
+      <div class="confidence-row">
+        <span class="conf-label">Confidence</span>
+        <div class="conf-bar-track"><div class="conf-bar-fill" id="conf-bar" style="width:0%"></div></div>
+        <span class="conf-pct" id="conf-pct">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info Cards -->
+  <div class="info-grid">
+    <div class="info-card">
+      <h4>Pathogen / Cause</h4>
+      <p id="info-cause">—</p>
+    </div>
+    <div class="info-card">
+      <h4>Visual Symptoms Detected</h4>
+      <ul id="info-symptoms"></ul>
+    </div>
+    <div class="info-card">
+      <h4>Spread Mechanism</h4>
+      <p id="info-spread">—</p>
+    </div>
+    <div class="info-card">
+      <h4>Risk to Yield</h4>
+      <p id="info-risk">—</p>
+    </div>
+  </div>
+
+  <!-- Severity -->
+  <div class="severity-block">
+    <h4>Infection Severity</h4>
+    <div class="severity-scale" id="severity-scale">
+      <div class="severity-segment" id="seg1"></div>
+      <div class="severity-segment" id="seg2"></div>
+      <div class="severity-segment" id="seg3"></div>
+      <div class="severity-segment" id="seg4"></div>
+      <div class="severity-segment" id="seg5"></div>
+      <div class="severity-segment" id="seg6"></div>
+      <div class="severity-segment" id="seg7"></div>
+      <div class="severity-segment" id="seg8"></div>
+      <div class="severity-segment" id="seg9"></div>
+      <div class="severity-segment" id="seg10"></div>
+    </div>
+    <div class="severity-labels"><span>None</span><span>Mild</span><span>Moderate</span><span>Severe</span><span>Critical</span></div>
+  </div>
+
+  <!-- Treatment Steps -->
+  <div class="treatment-section">
+    <h3>Recommended Treatment Protocol</h3>
+    <div class="treatment-steps" id="treatment-steps"></div>
+  </div>
+
+  <!-- Prevention Tips -->
+  <div class="section-label">Prevention Tips</div>
+  <div class="tips-grid" id="tips-grid"></div>
+
+  <!-- Raw Analysis -->
+  <details class="raw-toggle">
+    <summary>View raw AI analysis</summary>
+    <div class="raw-content" id="raw-content"></div>
+  </details>
+
+  <!-- Reset -->
+  <button id="reset-btn">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7A4.5 4.5 0 107 2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M2.5 4v3h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Analyze another image
+  </button>
+</div>
+
+<footer>
+  <p>AgriVision</p>
+  <span class="model-badge"></span>
+</footer>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const browseLink = document.getElementById('browse-link');
+const previewArea = document.getElementById('preview-area');
+const previewImg = document.getElementById('preview-img');
+const previewFilename = document.getElementById('preview-filename');
+const removeBtn = document.getElementById('remove-btn');
+const uploadIconWrap = document.getElementById('upload-icon-wrap');
+const uploadTitle = document.getElementById('upload-title');
+const uploadSubtitle = document.getElementById('upload-subtitle');
+const analyzeBtn = document.getElementById('analyze-btn');
+const loadingState = document.getElementById('loading-state');
+const resultSection = document.getElementById('result-section');
+const errorState = document.getElementById('error-state');
+const errorMsg = document.getElementById('error-msg');
+const uploadSection = document.getElementById('upload-section');
+
+let currentFile = null;
+let currentBase64 = null;
+
+browseLink.addEventListener('click', e => { e.preventDefault(); fileInput.click(); });
+dropZone.addEventListener('click', e => { if (!currentFile) fileInput.click(); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadFile(f);
+});
+
+function loadFile(file) {
+  if (file.size > 10 * 1024 * 1024) { alert('File too large. Max 10 MB.'); return; }
+  currentFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const dataUrl = ev.target.result;
+    currentBase64 = dataUrl.split(',')[1];
+    previewImg.src = dataUrl;
+    previewArea.style.display = 'block';
+    uploadIconWrap.style.display = 'none';
+    uploadTitle.style.display = 'none';
+    uploadSubtitle.style.display = 'none';
+    previewFilename.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    dropZone.classList.add('has-image');
+    analyzeBtn.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+removeBtn.addEventListener('click', e => { e.stopPropagation(); resetUpload(); });
+
+function resetUpload() {
+  currentFile = null; currentBase64 = null;
+  previewArea.style.display = 'none';
+  uploadIconWrap.style.display = 'block';
+  uploadTitle.style.display = 'block';
+  uploadSubtitle.style.display = 'block';
+  previewImg.src = ''; previewFilename.textContent = '';
+  dropZone.classList.remove('has-image');
+  analyzeBtn.disabled = true;
+  fileInput.value = '';
+}
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  resultSection.style.display = 'none';
+  errorState.style.display = 'none';
+  uploadSection.style.display = 'block';
+  resetUpload();
+});
+
+// Loading step animation
+let stepInterval;
+function animateSteps() {
+  const steps = ['step1','step2','step3','step4'];
+  let i = 0;
+  steps.forEach(id => { 
+    const el = document.getElementById(id); 
+    el.className = 'step-item'; 
+  });
+  document.getElementById(steps[0]).className = 'step-item active';
+  stepInterval = setInterval(() => {
+    document.getElementById(steps[i]).className = 'step-item done';
+    i++;
+    if (i < steps.length) document.getElementById(steps[i]).className = 'step-item active';
+    else clearInterval(stepInterval);
+  }, 900);
+}
+
+analyzeBtn.addEventListener('click', async () => {
+  if (!currentBase64 || !currentFile) return;
+  
+  uploadSection.style.display = 'none';
+  loadingState.style.display = 'block';
+  errorState.style.display = 'none';
+  resultSection.style.display = 'none';
+  animateSteps();
+
+  const mediaType = currentFile.type || 'image/jpeg';
+
+  const prompt = `You are an expert plant pathologist specializing in Solanaceae crops. Analyze this potato leaf image and provide a detailed disease diagnosis.
+
+Respond ONLY with valid JSON (no markdown fences, no preamble). Use exactly this structure:
+
+{
+  "disease": "Healthy" | "Early Blight" | "Late Blight" | "Other: <name>",
+  "scientific_name": "<pathogen scientific name, or empty string if healthy>",
+  "confidence": <integer 0-100>,
+  "severity": <integer 1-10, where 1 is none/healthy and 10 is critical>,
+  "cause": "<description of pathogen or cause>",
+  "symptoms_detected": ["<symptom 1>", "<symptom 2>", "<symptom 3>"],
+  "spread_mechanism": "<how disease spreads>",
+  "risk_to_yield": "<impact on crop yield>",
+  "treatment_steps": [
+    {"title": "<step title>", "detail": "<detailed instruction>"},
+    {"title": "<step title>", "detail": "<detailed instruction>"},
+    {"title": "<step title>", "detail": "<detailed instruction>"},
+    {"title": "<step title>", "detail": "<detailed instruction>"}
+  ],
+  "prevention_tips": [
+    {"icon": "<single emoji>", "title": "<short title>", "tip": "<one sentence>"},
+    {"icon": "<single emoji>", "title": "<short title>", "tip": "<one sentence>"},
+    {"icon": "<single emoji>", "title": "<short title>", "tip": "<one sentence>"},
+    {"icon": "<single emoji>", "title": "<short title>", "tip": "<one sentence>"}
+  ],
+  "notes": "<any additional observations about this specific leaf image>"
+}
+
+Be specific and accurate. Base your analysis strictly on what you observe in the image.`;
+
+  try {
+    // Send the file to your Flask backend instead of directly to Anthropic
+    const formData = new FormData();
+    formData.append("file", currentFile);
+
+    const response = await fetch("/predict-gemini", {
+      method: "POST",
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rawText = data.raw_text;
+
+    let parsed;
+    try {
+      const cleaned = rawText.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      throw new Error('Model returned non-JSON response: ' + rawText.slice(0, 200));
+    }
+
+    clearInterval(stepInterval);
+    loadingState.style.display = 'none';
+    renderResults(parsed, rawText);
+
+  } catch (err) {
+    clearInterval(stepInterval);
+    loadingState.style.display = 'none';
+    errorState.style.display = 'block';
+    errorMsg.textContent = err.message;
+    uploadSection.style.display = 'block';
+  }
+});
+
+function classifyBannerType(disease) {
+  if (!disease) return 'unknown';
+  const d = disease.toLowerCase();
+  if (d.includes('healthy')) return 'healthy';
+  if (d.includes('early blight')) return 'early-blight';
+  if (d.includes('late blight')) return 'late-blight';
+  return 'unknown';
+}
+
+function getIcon(disease) {
+  const d = (disease || '').toLowerCase();
+  if (d.includes('healthy')) return '🌿';
+  if (d.includes('early blight')) return '🍂';
+  if (d.includes('late blight')) return '⚠️';
+  return '🔍';
+}
+
+function renderResults(d, rawText) {
+  const type = classifyBannerType(d.disease);
+  const banner = document.getElementById('verdict-banner');
+  banner.className = 'verdict-banner ' + type;
+
+  document.getElementById('verdict-icon').textContent = getIcon(d.disease);
+  document.getElementById('verdict-label').textContent = type === 'healthy' ? 'PLANT STATUS' : 'DISEASE DETECTED';
+  document.getElementById('verdict-name').textContent = d.disease || 'Unknown';
+  document.getElementById('verdict-scientific').textContent = d.scientific_name || '';
+
+  const conf = Math.min(100, Math.max(0, parseInt(d.confidence) || 0));
+  document.getElementById('conf-pct').textContent = conf + '%';
+  setTimeout(() => { document.getElementById('conf-bar').style.width = conf + '%'; }, 100);
+
+  document.getElementById('info-cause').textContent = d.cause || '—';
+  document.getElementById('info-spread').textContent = d.spread_mechanism || '—';
+  document.getElementById('info-risk').textContent = d.risk_to_yield || '—';
+
+  const symList = document.getElementById('info-symptoms');
+  symList.innerHTML = '';
+  (d.symptoms_detected || []).forEach(s => {
+    const li = document.createElement('li'); li.textContent = s; symList.appendChild(li);
+  });
+
+  const sev = Math.min(10, Math.max(0, parseInt(d.severity) || 0));
+  for (let i = 1; i <= 10; i++) {
+    const seg = document.getElementById('seg' + i);
+    seg.className = 'severity-segment';
+    if (i <= sev) {
+      if (sev <= 3) seg.classList.add('active-low');
+      else if (sev <= 6) seg.classList.add('active-med');
+      else seg.classList.add('active-high');
+    }
+  }
+
+  const stepsEl = document.getElementById('treatment-steps');
+  stepsEl.innerHTML = '';
+  (d.treatment_steps || []).forEach((step, i) => {
+    stepsEl.innerHTML += `
+      <div class="treatment-step">
+        <div class="step-num">${String(i+1).padStart(2,'0')}</div>
+        <div class="step-content">
+          <strong>${escHtml(step.title || '')}</strong>
+          <p>${escHtml(step.detail || '')}</p>
+        </div>
+      </div>`;
+  });
+
+  const tipsEl = document.getElementById('tips-grid');
+  tipsEl.innerHTML = '';
+  (d.prevention_tips || []).forEach(tip => {
+    tipsEl.innerHTML += `
+      <div class="tip-card">
+        <div class="tip-icon">${tip.icon || '💡'}</div>
+        <h5>${escHtml(tip.title || '')}</h5>
+        <p>${escHtml(tip.tip || '')}</p>
+      </div>`;
+  });
+
+  document.getElementById('raw-content').textContent = JSON.stringify(JSON.parse(rawText.replace(/```json|```/g,'')), null, 2);
+
+  resultSection.style.display = 'block';
+  resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function escHtml(str) {
+  const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+}
+</script>
+</body>
+
+</html>
