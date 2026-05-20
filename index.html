@@ -216,7 +216,9 @@
       </svg>
     </div>
     <h2 id="upload-title">Drop a potato leaf image here</h2>
-    <p id="upload-subtitle">Drag &amp; drop, or <a class="browse-link" id="browse-link" href="#">browse files</a></p>
+    
+    <!-- FIX: Changed from <label> to <span> so native browser behavior doesn't clash with JavaScript -->
+    <p id="upload-subtitle">Drag &amp; drop, or <span class="browse-link" id="browse-link" style="cursor: pointer;">browse files</span></p>
     
     <div id="preview-area" style="display:none;">
       <div class="preview-wrapper">
@@ -225,7 +227,9 @@
       </div>
       <p class="preview-filename" id="preview-filename"></p>
     </div>
-    <input type="file" id="file-input" accept="image/*">
+    
+    <!-- FIX: Removed display:none, using visibility hidden so it's clickable in all browsers -->
+    <input type="file" id="file-input" accept="image/*" style="visibility: hidden; position: absolute; width: 1px; height: 1px;">
   </div>
 
   <div class="button-group">
@@ -358,25 +362,18 @@ const cloudMetricsBlock = document.getElementById('cloud-metrics');
 
 let currentFile = null;
 
-// Fix: Prevent click from firing twice using stopPropagation
-browseLink.addEventListener('click', e => { 
-  e.preventDefault(); 
-  e.stopPropagation(); 
+// Opens the file picker when the dashed box is clicked
+dropZone.addEventListener('click', (e) => { 
+  if (e.target === fileInput) return;
+  if (e.target === removeBtn) return;
   fileInput.click(); 
-});
-
-dropZone.addEventListener('click', e => { 
-  // Only click if clicking the drop zone itself and no image is loaded
-  if (!currentFile) {
-    fileInput.click(); 
-  }
 });
 
 fileInput.addEventListener('change', e => { 
   if (e.target.files.length > 0) loadFile(e.target.files[0]); 
 });
 
-// Drag & Drop event handlers
+// Drag & Drop handlers
 ['dragenter', 'dragover'].forEach(eventName => {
   dropZone.addEventListener(eventName, e => {
     e.preventDefault();
@@ -503,8 +500,8 @@ runCloudBtn.addEventListener('click', async () => {
 
     let parsed;
     try {
-      const cleaned = data.raw_text.replace(/```json|
-```/g, '').trim();
+      // THIS IS THE LINE THAT WAS BROKEN IN HALF:
+      const cleaned = data.raw_text.replace(/```json|```/g, '').trim();
       parsed = JSON.parse(cleaned);
     } catch {
       throw new Error('Malformed non-JSON packet stream returned from cloud endpoint.');
