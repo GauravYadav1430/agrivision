@@ -197,4 +197,4 @@ Respond ONLY with valid JSON (no markdown fences, no preamble). Use exactly this
         return jsonify({"error": f"API request failed: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", port=7860)
