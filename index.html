@@ -358,16 +358,47 @@ const cloudMetricsBlock = document.getElementById('cloud-metrics');
 
 let currentFile = null;
 
-browseLink.addEventListener('click', e => { e.preventDefault(); fileInput.click(); });
-dropZone.addEventListener('click', e => { if (!currentFile) fileInput.click(); });
-fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+// Fix: Prevent click from firing twice using stopPropagation
+browseLink.addEventListener('click', e => { 
+  e.preventDefault(); 
+  e.stopPropagation(); 
+  fileInput.click(); 
+});
 
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('click', e => { 
+  // Only click if clicking the drop zone itself and no image is loaded
+  if (!currentFile) {
+    fileInput.click(); 
+  }
+});
+
+fileInput.addEventListener('change', e => { 
+  if (e.target.files.length > 0) loadFile(e.target.files[0]); 
+});
+
+// Drag & Drop event handlers
+['dragenter', 'dragover'].forEach(eventName => {
+  dropZone.addEventListener(eventName, e => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.add('drag-over');
+  }, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+  dropZone.addEventListener(eventName, e => {
+    e.preventDefault();
+    e.stopPropagation();
+    dropZone.classList.remove('drag-over');
+  }, false);
+});
+
 dropZone.addEventListener('drop', e => {
-  e.preventDefault(); dropZone.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
-  if (f && f.type.startsWith('image/')) loadFile(f);
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  if (files.length > 0 && files[0].type.startsWith('image/')) {
+    loadFile(files[0]);
+  }
 });
 
 function loadFile(file) {
@@ -387,7 +418,10 @@ function loadFile(file) {
   reader.readAsDataURL(file);
 }
 
-removeBtn.addEventListener('click', e => { e.stopPropagation(); resetUpload(); });
+removeBtn.addEventListener('click', e => { 
+  e.stopPropagation(); 
+  resetUpload(); 
+});
 
 function resetUpload() {
   currentFile = null;
@@ -427,7 +461,6 @@ function getIcon(disease) {
   return '🔍';
 }
 
-// 🖥️ EXECUTE LOCAL TENSORFLOW INFERENCE PIPELINE
 runLocalBtn.addEventListener('click', async () => {
   if (!currentFile) return;
   toggleLoading(true, "Executing Local Engine…", "Running local CNN context rules");
@@ -443,9 +476,8 @@ runLocalBtn.addEventListener('click', async () => {
 
     toggleLoading(false);
     activeBadge.textContent = "LOCAL CNN ACTIVE";
-    cloudMetricsBlock.style.display = 'none'; // Hide empty cloud arrays
+    cloudMetricsBlock.style.display = 'none';
 
-    // Set Common Verdict Structural Parameters
     renderCoreMetrics(data.disease, data.confidence, data.severity, data.status);
     
     resultSection.style.display = 'block';
@@ -456,7 +488,6 @@ runLocalBtn.addEventListener('click', async () => {
   }
 });
 
-// ✨ EXECUTE CLOUD GENERATIVE AI COGNITIVE PIPELINE
 runCloudBtn.addEventListener('click', async () => {
   if (!currentFile) return;
   toggleLoading(true, "Invoking Cloud AI…", "Streaming contextual hyper-graphs via Gemini");
@@ -481,14 +512,11 @@ runCloudBtn.addEventListener('click', async () => {
 
     toggleLoading(false);
     activeBadge.textContent = "GEMINI CORE ACTIVE";
-    cloudMetricsBlock.style.display = 'block'; // Uncover advanced analytics dashboards
+    cloudMetricsBlock.style.display = 'block';
 
-    // Scale severity safely to a 100-base metric for UI segmentation mapping
     const normalizedSeverity = (parseInt(parsed.severity) || 1) * 10;
-    
     renderCoreMetrics(parsed.disease, parsed.confidence, normalizedSeverity, parsed.notes || "Cloud deep evaluation completed.");
 
-    // Populate Deep Diagnostic Cards
     document.getElementById('info-scientific').textContent = parsed.scientific_name || '';
     document.getElementById('info-cause').textContent = parsed.cause || '—';
     document.getElementById('info-spread').textContent = parsed.spread_mechanism || '—';
@@ -500,7 +528,6 @@ runCloudBtn.addEventListener('click', async () => {
       const li = document.createElement('li'); li.textContent = s; symList.appendChild(li);
     });
 
-    // Populate Structural Treatment Protocol Stepper
     const stepsEl = document.getElementById('treatment-steps');
     stepsEl.innerHTML = '';
     (parsed.treatment_steps || []).forEach((step, i) => {
@@ -514,7 +541,6 @@ runCloudBtn.addEventListener('click', async () => {
         </div>`;
     });
 
-    // Populate Prevention Tips Grid Array
     const tipsEl = document.getElementById('tips-grid');
     tipsEl.innerHTML = '';
     (parsed.prevention_tips || []).forEach(tip => {
@@ -542,7 +568,6 @@ function renderCoreMetrics(disease, confidence, severityScore, statusText) {
   document.getElementById('verdict-icon').textContent = getIcon(disease);
   document.getElementById('verdict-label').textContent = type === 'healthy' ? 'BIOLOGICAL STATUS' : 'ANOMALY CONFIRMED';
   document.getElementById('verdict-name').textContent = disease || 'Unknown Node';
-  document.getElementById('verdict-scientific').textContent = ''; // Managed dynamically or cleared
 
   const conf = Math.min(100, Math.max(0, parseInt(confidence) || 0));
   document.getElementById('conf-pct').textContent = conf + '%';
@@ -550,7 +575,6 @@ function renderCoreMetrics(disease, confidence, severityScore, statusText) {
 
   document.getElementById('local-status-text').textContent = statusText || '';
 
-  // Draw Segmented Micro Severity Map Array
   const totalActiveSegments = Math.round(severityScore / 10);
   for (let i = 1; i <= 10; i++) {
     const seg = document.getElementById('seg' + i);
@@ -587,5 +611,6 @@ function escHtml(str) {
   const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
 }
 </script>
+
 </body>
 </html>
