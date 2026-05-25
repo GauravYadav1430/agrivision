@@ -18,31 +18,105 @@ app = Flask(__name__, template_folder='.', static_folder='.', static_url_path=''
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-print("[SYSTEM] Booting AgriVision Inference Engine v3.0...")
+print("[SYSTEM] Booting AgriVision Inference Engine v4.0 (Ensemble Boss)...")
 
-# --- LOAD MODELS (Using absolute paths to prevent crashes) ---
+# --- LOAD ENSEMBLE MODELS ---
 base_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(base_dir, 'potato_model_best.keras')
 
-try:
-    potato_model = tf.keras.models.load_model(model_path)
-except Exception as e:
-    print(f"[ERROR] Could not find potato model at {model_path}. Error: {e}")
+# Define the models we want to load for the Boss
+model_filenames = [
+    'Custom_CNN_best.keras', 
+    'MobileNetV2_best.keras', 
+    'EfficientNetB0_best.keras'
+]
+
+ensemble_models = []
+print("[SYSTEM] Loading Ensemble Models...")
+for filename in model_filenames:
+    model_path = os.path.join(base_dir, 'output' ,  filename)
+    try:
+        loaded_model = tf.keras.models.load_model(model_path)
+        ensemble_models.append(loaded_model)
+        print(f"[SUCCESS] Loaded {filename}")
+    except Exception as e:
+        print(f"[ERROR] Could not load {filename}. Error: {e}")
+
+if not ensemble_models:
+    print("[CRITICAL ERROR] No models loaded! Local predictions will fail.")
 
 gatekeeper_model = MobileNetV2(weights='imagenet')
 CLASS_NAMES = ['Potato___Early_blight', 'Potato___Late_blight', 'Potato___healthy']
+
+# --- LOCAL KNOWLEDGE BASE ---
+LOCAL_KNOWLEDGE = {
+    "Potato___Early_blight": {
+        "scientific_name": "Alternaria solani",
+        "cause": "Fungal pathogen thriving in warm, humid conditions.",
+        "symptoms_detected": ["Brown/black spots with concentric rings", "Yellowing of lower leaves", "Defoliation"],
+        "spread_mechanism": "Wind, splashing rain, and contaminated soil/equipment.",
+        "risk_to_yield": "Moderate to High. Causes premature defoliation, reducing tuber size.",
+        "treatment_steps": [
+            {"title": "Apply Fungicide", "detail": "Apply chlorothalonil or mancozeb-based fungicides immediately."},
+            {"title": "Clear Debris", "detail": "Remove and destroy infected plant debris to prevent overwintering."}
+        ],
+        "prevention_tips": [
+            {"icon": "💧", "title": "Avoid Overhead Watering", "tip": "Water at the base to keep leaves dry."},
+            {"icon": "🔄", "title": "Crop Rotation", "tip": "Rotate with non-solanaceous crops for 2-3 years."}
+        ]
+    },
+    "Potato___Late_blight": {
+        "scientific_name": "Phytophthora infestans",
+        "cause": "Oomycete (water mold) that spreads rapidly in cool, wet weather.",
+        "symptoms_detected": ["Water-soaked dark lesions", "White fungal growth on undersides", "Rapid leaf collapse"],
+        "spread_mechanism": "Airborne spores travelling miles in moist air; infected seed tubers.",
+        "risk_to_yield": "Critical. Can destroy an entire crop in days and rot tubers in storage.",
+        "treatment_steps": [
+            {"title": "Aggressive Fungicide", "detail": "Apply systemic fungicides like mefenoxam if resistant strains are not present."},
+            {"title": "Vine Killing", "detail": "Kill vines 2-3 weeks before harvest to prevent tuber infection."}
+        ],
+        "prevention_tips": [
+            {"icon": "🌱", "title": "Certified Seed", "tip": "Only plant certified disease-free seed potatoes."},
+            {"icon": "🌬️", "title": "Spacing", "tip": "Ensure wide plant spacing for excellent airflow."}
+        ]
+    },
+    "Potato___healthy": {
+        "scientific_name": "Solanum tuberosum",
+        "cause": "Optimal growing conditions and effective crop management.",
+        "symptoms_detected": ["Vibrant green coloration", "Intact leaf structure", "No lesions"],
+        "spread_mechanism": "N/A",
+        "risk_to_yield": "None. Crop is on track for optimal harvest.",
+        "treatment_steps": [
+            {"title": "Maintain Regiment", "detail": "Continue current watering and fertilizing schedules."}
+        ],
+        "prevention_tips": [
+            {"icon": "👁️", "title": "Scouting", "tip": "Continue weekly field scouting to catch early infections."},
+            {"icon": "🛡️", "title": "Proactive Defense", "tip": "Apply preventative fungicides before forecasted rain."}
+        ]
+    }
+}
 
 # Load Facial Recognition AI
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # --- INITIALIZE GEMINI CLIENT ---
-# This automatically looks for GEMINI_API_KEY in your .env file
 try:
     gemini_client = genai.Client()
 except Exception as e:
     print("[WARNING] Gemini Client failed to initialize. Check your .env file.")
     gemini_client = None
 
+# --- ENSEMBLE PREDICTION LOGIC ---
+def get_ensemble_prediction(img_array):
+    """Runs the image through all loaded models and averages the probabilities."""
+    if not ensemble_models:
+        raise ValueError("Ensemble models are missing.")
+    
+    # Get predictions from every model (returns a list of probability arrays)
+    predictions = [model.predict(img_array, verbose=0) for model in ensemble_models]
+    
+    # Soft Voting: Average the probabilities across axis 0
+    averaged_preds = np.mean(predictions, axis=0)
+    return averaged_preds
 
 # --- STAGE 1: FACIAL RECOGNITION ---
 def contains_human_face(filepath):
@@ -63,9 +137,6 @@ def is_safe_semantic_context(filepath):
         'wig', 'microphone', 'desk', 'laptop', 'car', 'dog', 'cat', 'person'
     ]
     
-    if np.argmax(preds[0]) <= 397:
-        return False, f"Animal detected ({top_5[0][1].replace('_', ' ')})"
-
     for _, label, confidence in top_5:
         if confidence > 0.05: 
             if any(bad_word in label.lower() for bad_word in blacklisted_words):
@@ -130,12 +201,17 @@ def predict():
     if not contains_organic_matter(filepath):
         return jsonify({"disease": "Invalid Input", "confidence": 0, "severity": 0, "status": "Insufficient plant matter detected."})
 
+    # Prepare image for the Ensemble
     img = image.load_img(filepath, target_size=(256, 256))
     img_array = tf.expand_dims(image.img_to_array(img), 0)
     
-    predictions = potato_model.predict(img_array, verbose=0)
-    predicted_class = CLASS_NAMES[np.argmax(predictions[0])]
-    confidence = float(round(100 * np.max(predictions[0]).item(), 2))
+    # 🌟 LET THE ENSEMBLE BOSS DECIDE 🌟
+    try:
+        predictions = get_ensemble_prediction(img_array)
+        predicted_class = CLASS_NAMES[np.argmax(predictions[0])]
+        confidence = float(round(100 * np.max(predictions[0]).item(), 2))
+    except Exception as e:
+        return jsonify({"error": f"Ensemble prediction failed: {str(e)}"}), 500
 
     if confidence < 75.0:
         return jsonify({"disease": "Uncertain Diagnosis", "confidence": confidence, "severity": 0, "status": "Model entropy too high."})
@@ -149,8 +225,26 @@ def predict():
         elif severity < 30.0: status = "Moderate infection. Treat soon."
         else: status = "Severe infection. Immediate action required."
 
+    # Fetch the rich data from our local knowledge base
+    knowledge = LOCAL_KNOWLEDGE.get(predicted_class, LOCAL_KNOWLEDGE["Potato___healthy"])
+
     display_class = predicted_class.replace('Potato___', '').replace('_', ' ').title()
-    return jsonify({"disease": display_class, "confidence": confidence, "severity": severity, "status": status})
+    
+    # Return the exact same expanded JSON payload that Gemini uses!
+    return jsonify({
+        "disease": display_class, 
+        "confidence": confidence, 
+        "severity": severity, 
+        "status": status,
+        "scientific_name": knowledge["scientific_name"],
+        "cause": knowledge["cause"],
+        "symptoms_detected": knowledge["symptoms_detected"],
+        "spread_mechanism": knowledge["spread_mechanism"],
+        "risk_to_yield": knowledge["risk_to_yield"],
+        "treatment_steps": knowledge["treatment_steps"],
+        "prevention_tips": knowledge["prevention_tips"]
+    })
+
 
 
 # --- THE NEW GEMINI ROUTE ---
