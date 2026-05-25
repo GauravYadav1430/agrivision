@@ -71,6 +71,10 @@
     cursor: pointer; transition: all 0.25s ease; position: relative; overflow: hidden;
   }
   #drop-zone:hover, #drop-zone.drag-over { border-color: var(--accent); background: #1a2615; }
+  #drop-zone:focus { 
+    outline: 2px solid var(--accent); 
+    outline-offset: 4px; 
+  }
   #drop-zone.has-image { padding: 16px; }
   .upload-icon { margin-bottom: 16px; opacity: 0.6; }
   .upload-icon svg { width: 44px; height: 44px; }
@@ -208,7 +212,7 @@
 <!-- UPLOAD SECTION -->
 <div class="upload-section" id="upload-section">
   <div class="section-label">Target Input Pool</div>
-  <div id="drop-zone">
+  <div id="drop-zone" tabindex="0" aria-label="File upload drop zone. Press Enter to browse files.">
     <div class="upload-icon" id="upload-icon-wrap">
       <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="2" y="2" width="40" height="40" rx="10" stroke="#6db33f" stroke-width="1.5" stroke-dasharray="4 3"/>
@@ -234,7 +238,7 @@
 
   <div class="button-group">
     <button class="analyze-btn local-btn" id="run-local-btn" disabled>
-      🖥️ Run Local ML Model
+      🖥️ Run Local AI Ensemble
     </button>
     <button class="analyze-btn cloud-btn" id="run-cloud-btn" disabled>
       ✨ Run Cloud AI (Gemini)
@@ -360,6 +364,8 @@ const uploadSection = document.getElementById('upload-section');
 const activeBadge = document.getElementById('active-engine-badge');
 const cloudMetricsBlock = document.getElementById('cloud-metrics');
 
+const MAX_FILE_SIZE_MB = 5;
+const VALID_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 let currentFile = null;
 
 // Opens the file picker when the dashed box is clicked
@@ -399,6 +405,18 @@ dropZone.addEventListener('drop', e => {
 });
 
 function loadFile(file) {
+  // 1. Validate File Type
+  if (!VALID_TYPES.includes(file.type)) {
+    handlePipelineError("Invalid format. Please upload a JPG, PNG, or WEBP.");
+    return;
+  }
+
+  // 2. Validate File Size
+  if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+    handlePipelineError(`File exceeds ${MAX_FILE_SIZE_MB}MB limit.`);
+    return;
+  }
+
   currentFile = file;
   const reader = new FileReader();
   reader.onload = ev => {
@@ -409,9 +427,14 @@ function loadFile(file) {
     uploadSubtitle.style.display = 'none';
     previewFilename.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
     dropZone.classList.add('has-image');
+    
+    // Clear any previous errors
+    errorState.style.display = 'none'; 
+    
     runLocalBtn.disabled = false;
     runCloudBtn.disabled = false;
   };
+  reader.onerror = () => handlePipelineError("Failed to read file.");
   reader.readAsDataURL(file);
 }
 
@@ -438,7 +461,6 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   errorState.style.display = 'none';
   uploadSection.style.display = 'block';
   activeBadge.textContent = "HYBRID MODE";
-  resetUpload();
 });
 
 function classifyBannerType(disease) {
@@ -465,18 +487,68 @@ runLocalBtn.addEventListener('click', async () => {
   const formData = new FormData();
   formData.append("file", currentFile);
 
+  // Set a 15-second timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
-    const response = await fetch("/predict", { method: "POST", body: formData });
+    const response = await fetch("/predict", { 
+      method: "POST", 
+      body: formData,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
     const data = await response.json();
 
     if (!response.ok || data.error) throw new Error(data.error || data.status || "Inference Exception");
 
     toggleLoading(false);
-    activeBadge.textContent = "LOCAL CNN ACTIVE";
-    cloudMetricsBlock.style.display = 'none';
+    activeBadge.textContent = "ENSEMBLE AI ACTIVE (3 Models)";
+    
+    // CHANGE 1: Stop hiding the metrics block!
+    cloudMetricsBlock.style.display = 'block';
 
     renderCoreMetrics(data.disease, data.confidence, data.severity, data.status);
     
+    // CHANGE 2: Populate the UI with the local knowledge base data
+    document.getElementById('verdict-scientific').textContent = data.scientific_name || '';
+    document.getElementById('info-cause').textContent = data.cause || '—';
+    document.getElementById('info-spread').textContent = data.spread_mechanism || '—';
+    document.getElementById('info-risk').textContent = data.risk_to_yield || '—';
+
+    const symList = document.getElementById('info-symptoms');
+    symList.innerHTML = '';
+    (data.symptoms_detected || []).forEach(s => {
+      const li = document.createElement('li'); 
+      li.textContent = s; 
+      symList.appendChild(li);
+    });
+
+    const stepsEl = document.getElementById('treatment-steps');
+    stepsEl.innerHTML = '';
+    (data.treatment_steps || []).forEach((step, i) => {
+      stepsEl.innerHTML += `
+        <div class="treatment-step">
+          <div class="step-num">${String(i+1).padStart(2,'0')}</div>
+          <div class="step-content">
+            <strong>${escHtml(step.title || '')}</strong>
+            <p>${escHtml(step.detail || '')}</p>
+          </div>
+        </div>`;
+    });
+
+    const tipsEl = document.getElementById('tips-grid');
+    tipsEl.innerHTML = '';
+    (data.prevention_tips || []).forEach(tip => {
+      tipsEl.innerHTML += `
+        <div class="tip-card">
+          <div class="tip-icon">${tip.icon || '💡'}</div>
+          <h5>${escHtml(tip.title || '')}</h5>
+          <p>${escHtml(tip.tip || '')}</p>
+        </div>`;
+    });
+
     resultSection.style.display = 'block';
     resultSection.scrollIntoView({ behavior: 'smooth' });
 
@@ -492,15 +564,24 @@ runCloudBtn.addEventListener('click', async () => {
   const formData = new FormData();
   formData.append("file", currentFile);
 
+  // Set a 15-second timeout for the fetch request
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
-    const response = await fetch("/predict-gemini", { method: "POST", body: formData });
+    const response = await fetch("/predict-gemini", { 
+      method: "POST", 
+      body: formData,
+      signal: controller.signal 
+    });
+    
+    clearTimeout(timeoutId); // Clear timeout if successful
     const data = await response.json();
 
     if (!response.ok) throw new Error(data.error || "Cloud Target Handshake Failure");
 
     let parsed;
     try {
-      // THIS IS THE LINE THAT WAS BROKEN IN HALF:
       const cleaned = data.raw_text.replace(/```json|```/g, '').trim();
       parsed = JSON.parse(cleaned);
     } catch {
@@ -514,7 +595,7 @@ runCloudBtn.addEventListener('click', async () => {
     const normalizedSeverity = (parseInt(parsed.severity) || 1) * 10;
     renderCoreMetrics(parsed.disease, parsed.confidence, normalizedSeverity, parsed.notes || "Cloud deep evaluation completed.");
 
-    document.getElementById('info-scientific').textContent = parsed.scientific_name || '';
+    document.getElementById('verdict-scientific').textContent = parsed.scientific_name || '';
     document.getElementById('info-cause').textContent = parsed.cause || '—';
     document.getElementById('info-spread').textContent = parsed.spread_mechanism || '—';
     document.getElementById('info-risk').textContent = parsed.risk_to_yield || '—';
@@ -522,7 +603,9 @@ runCloudBtn.addEventListener('click', async () => {
     const symList = document.getElementById('info-symptoms');
     symList.innerHTML = '';
     (parsed.symptoms_detected || []).forEach(s => {
-      const li = document.createElement('li'); li.textContent = s; symList.appendChild(li);
+      const li = document.createElement('li'); 
+      li.textContent = s; // textContent naturally escapes HTML
+      symList.appendChild(li);
     });
 
     const stepsEl = document.getElementById('treatment-steps');
@@ -553,7 +636,12 @@ runCloudBtn.addEventListener('click', async () => {
     resultSection.scrollIntoView({ behavior: 'smooth' });
 
   } catch (err) {
-    handlePipelineError(err.message);
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      handlePipelineError("Connection timed out. The server took too long to respond.");
+    } else {
+      handlePipelineError(err.message);
+    }
   }
 });
 
