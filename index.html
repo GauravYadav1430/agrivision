@@ -489,7 +489,7 @@ runLocalBtn.addEventListener('click', async () => {
 
   // Set a 15-second timeout
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
     const response = await fetch("/predict", { 
@@ -566,7 +566,7 @@ runCloudBtn.addEventListener('click', async () => {
 
   // Set a 15-second timeout for the fetch request
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
     const response = await fetch("/predict-gemini", { 
