@@ -1,9 +1,9 @@
-Flask==3.0.0
-werkzeug==3.0.1
-tensorflow-cpu==2.15.0
-opencv-python-headless==4.9.0.80
-numpy==1.26.4
-google-genai
+Flask
+tensorflow-cpu
+opencv-python-headless
+numpy
 pillow
+google-genai
 python-dotenv
-requests
+gunicorn
+werkzeug
